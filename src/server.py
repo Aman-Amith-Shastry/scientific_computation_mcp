@@ -109,7 +109,7 @@ if __name__ == "__main__":
         max_age=86400,
     )
 
-    port = int(os.environ.get("PORT", 8081))
+    port = int(os.environ.get("PORT", 8080))
     print(f"Listening on port {port}")
 
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="debug")

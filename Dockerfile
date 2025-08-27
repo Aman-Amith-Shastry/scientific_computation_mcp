@@ -28,6 +28,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Set transport mode to HTTP
 ENV TRANSPORT=http
+ENV PORT=8080
+EXPOSE 8080
 
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
