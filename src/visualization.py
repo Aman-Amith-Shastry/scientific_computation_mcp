@@ -68,6 +68,7 @@ def register_tools(mcp):
         except ValueError as e:
             raise ValueError(f'Error plotting vector field: {e}')
 
+        buf.close()
         return Image(data=img_bytes, format="png")
 
     @mcp.tool()
@@ -132,5 +133,6 @@ def register_tools(mcp):
         buf = BytesIO()
         canvas = FigureCanvas(fig)
         canvas.print_png(buf)
-
-        return Image(data=buf.getvalue(), format='png')
+        img_bytes = buf.getvalue()
+        buf.close()
+        return Image(data=img_bytes, format='png')

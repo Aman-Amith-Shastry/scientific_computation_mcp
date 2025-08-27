@@ -1,31 +1,36 @@
-FROM python:3.12-slim
+# Dockerfile
+# Use a Python image with uv pre-installed
+FROM ghcr.io/astral-sh/uv:python3.12-alpine
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    UV_HTTP_TIMEOUT=60
-
-# Set working directory
+# Install the project into `/app`
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y curl
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
 
+# Copy from the cache instead of linking since it's a mounted volume
+ENV UV_LINK_MODE=copy
 
-# Install uv package manager
-RUN pip install uv
+# Install the project's dependencies using the lockfile and settings
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project --no-dev
 
-# Copy project files
-COPY . .
+# Then, add the rest of the project source code and install it
+# Installing separately from its dependencies allows optimal layer caching
+COPY . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev
 
-# Install dependencies using uv
-RUN uv add numpy
-RUN uv add "mcp[cli]"
-RUN uv add sympy
-RUN uv add matplotlib
-RUN uv add pydantic
+# Place executables in the environment at the front of the path
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Expose the port (if needed)
-#EXPOSE 8000
+# Set transport mode to HTTP
+ENV TRANSPORT=http
 
-# Start the MCP server using uv
-CMD ["uv", "run", "src/server.py"]
+# Reset the entrypoint, don't invoke `uv`
+ENTRYPOINT []
+
+# Run the application directly using the venv Python
+CMD ["python", "src/server.py"]

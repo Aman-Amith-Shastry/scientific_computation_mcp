@@ -1,8 +1,6 @@
+runtime: "container"
+build:
+  dockerfile: "Dockerfile"           # Path to your Dockerfile
+  dockerBuildPath: "."               # Docker build context
 startCommand:
-  type: stdio
-  configSchema:
-    type: object
-    properties: {}
-  commandFunction: |
-    (config) => ({ command: 'uv', args: ['run', 'src/server.py'] })
-  exampleConfig: {}
+  type: "http"
