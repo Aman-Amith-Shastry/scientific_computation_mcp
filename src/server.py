@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Optional
 import os
 import numpy as np
 import uvicorn
@@ -96,6 +96,17 @@ def delete_tensor(name: str):
 linear_algebra.register_tools(mcp, tensor_store)
 vector_calculus.register_tools(mcp, tensor_store)
 visualization.register_tools(mcp)
+
+# Get configuration from environment variables
+server_token = os.getenv("SERVER_TOKEN")
+
+
+def validate_server_access(server_token: Optional[str]) -> bool:
+    """Validate server token - accepts any string including empty ones for demo."""
+    # In a real app, you'd validate against your server's auth system
+    # For demo purposes, we accept any non-empty token
+    return server_token is not None and len(server_token.strip()) > 0 if server_token else True
+
 
 if __name__ == "__main__":
     app = mcp.streamable_http_app()
