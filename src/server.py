@@ -98,19 +98,41 @@ vector_calculus.register_tools(mcp, tensor_store)
 visualization.register_tools(mcp)
 
 
+def main():
+    transport_mode = os.getenv("TRANSPORT", "stdio")
+
+    if transport_mode == "http":
+        # HTTP mode with config extraction from URL parameters
+        print("Character Counter MCP Server starting in HTTP mode...")
+
+        # Setup Starlette app with CORS for cross-origin requests
+        app = mcp.streamable_http_app()
+
+        # IMPORTANT: add CORS middleware for browser based clients
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_headers=["*"],
+            expose_headers=["mcp-session-id", "mcp-protocol-version"],
+            max_age=86400,
+        )
+
+        # Use Smithery-required PORT environment variable
+        port = int(os.environ.get("PORT", 8081))
+        print(f"Listening on port {port}")
+
+        uvicorn.run(app, host="0.0.0.0", port=port, log_level="debug")
+
+    else:
+        # Optional: add stdio transport for backwards compatibility
+        # You can publish this to uv for users to run locally
+        print("Character Counter MCP Server starting in stdio mode...")
+
+        # Run with stdio transport (default)
+        mcp.run()
+
+
 if __name__ == "__main__":
-    app = mcp.streamable_http_app()
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"],
-        expose_headers=["mcp-session-id", "mcp-protocol-version"],
-        max_age=86400,
-    )
-
-    port = int(os.environ.get("PORT", 8081))
-    print(f"Listening on port {port}")
-
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="debug")
+    main()
