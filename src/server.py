@@ -102,16 +102,13 @@ def main():
     transport_mode = os.getenv("TRANSPORT", "stdio")
 
     if transport_mode == "http":
-        # HTTP mode with config extraction from URL parameters
-        print("Character Counter MCP Server starting in HTTP mode...")
 
         # Setup Starlette app with CORS for cross-origin requests
         app = mcp.streamable_http_app()
 
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["https://smithery.ai"],  # instead of "*"
-            allow_credentials=True,
+            allow_origins=["https://smithery.ai"],
             allow_methods=["*"],  # Allow all methods including OPTIONS
             allow_headers=["*"],  # Allow Content-Type, mcp-protocol-version, etc.
             expose_headers=["mcp-session-id", "mcp-protocol-version"],
@@ -127,15 +124,9 @@ def main():
             host="0.0.0.0",
             port=port,
             log_level="debug",
-            ssl_keyfile="key.pem",
-            ssl_certfile="cert.pem"
         )
 
     else:
-        # Optional: add stdio transport for backwards compatibility
-        # You can publish this to uv for users to run locally
-        print("Character Counter MCP Server starting in stdio mode...")
-
         # Run with stdio transport (default)
         mcp.run()
 
