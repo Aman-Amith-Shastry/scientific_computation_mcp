@@ -1,23 +1,31 @@
 FROM python:3.12-slim
 
-RUN pip install uv
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_HTTP_TIMEOUT=60
 
 # Set working directory
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y curl
+
+
+# Install uv package manager
+RUN pip install uv
+
 # Copy project files
-COPY . /app
+COPY . .
 
-# Install project dependencies
-RUN uv sync --locked --no-install-project --no-dev
+# Install dependencies using uv
+RUN uv add numpy
+RUN uv add "mcp[cli]"
+RUN uv add sympy
+RUN uv add matplotlib
 
-# Place executables in the environment at the front of the path
-ENV PATH="/app/.venv/bin:$PATH"
+RUN uv add pydantic
 
-# Set transport mode to HTTP
-ENV TRANSPORT=http
-ENV PORT=8081
+# Expose the port (if needed)
 EXPOSE 8081
 
-# Run the application directly using the venv Python
-CMD ["python", "src/server.py"]
+# Start the MCP server using uv
