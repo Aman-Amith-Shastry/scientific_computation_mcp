@@ -108,13 +108,12 @@ def main():
         # Setup Starlette app with CORS for cross-origin requests
         app = mcp.streamable_http_app()
 
-        # IMPORTANT: add CORS middleware for browser based clients
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origins=["https://smithery.ai"],  # instead of "*"
             allow_credentials=True,
-            allow_methods=["GET", "POST", "OPTIONS"],
-            allow_headers=["*"],
+            allow_methods=["*"],  # Allow all methods including OPTIONS
+            allow_headers=["*"],  # Allow Content-Type, mcp-protocol-version, etc.
             expose_headers=["mcp-session-id", "mcp-protocol-version"],
             max_age=86400,
         )
@@ -123,7 +122,14 @@ def main():
         port = int(os.environ.get("PORT", 8081))
         print(f"Listening on port {port}")
 
-        uvicorn.run(app, host="0.0.0.0", port=port, log_level="debug")
+        uvicorn.run(
+            app,
+            host="0.0.0.0",
+            port=port,
+            log_level="debug",
+            ssl_keyfile="key.pem",
+            ssl_certfile="cert.pem"
+        )
 
     else:
         # Optional: add stdio transport for backwards compatibility

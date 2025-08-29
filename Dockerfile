@@ -1,4 +1,6 @@
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+FROM python:3.12-slim
+
+RUN pip install uv
 
 # Set working directory
 WORKDIR /app
