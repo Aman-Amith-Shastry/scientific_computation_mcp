@@ -12,7 +12,7 @@ import visualization
 
 tensor_store = {}
 
-mcp = FastMCP("scientific_computations")
+mcp = FastMCP("scientific_computations", stateless_http=False)
 
 
 # Matrix creation, deletion, and modification
@@ -99,36 +99,7 @@ visualization.register_tools(mcp)
 
 
 def main():
-    transport_mode = os.getenv("TRANSPORT", "stdio")
-
-    if transport_mode == "http":
-
-        # Setup Starlette app with CORS for cross-origin requests
-        app = mcp.streamable_http_app()
-
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["https://smithery.ai"],
-            allow_methods=["*"],  # Allow all methods including OPTIONS
-            allow_headers=["*"],  # Allow Content-Type, mcp-protocol-version, etc.
-            expose_headers=["mcp-session-id", "mcp-protocol-version"],
-            max_age=86400,
-        )
-
-        # Use Smithery-required PORT environment variable
-        port = int(os.environ.get("PORT", 8081))
-        print(f"Listening on port {port}")
-
-        uvicorn.run(
-            app,
-            host="0.0.0.0",
-            port=port,
-            log_level="debug",
-        )
-
-    else:
-        # Run with stdio transport (default)
-        mcp.run()
+    mcp.run(transport='streamable-http')
 
 
 if __name__ == "__main__":

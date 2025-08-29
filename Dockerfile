@@ -29,3 +29,4 @@ RUN uv add pydantic
 EXPOSE 8081
 
 # Start the MCP server using uv
+CMD ["uv", "run", "src/server.py"]
