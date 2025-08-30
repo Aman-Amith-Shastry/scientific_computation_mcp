@@ -1,7 +1,12 @@
+# Smithery configuration file: https://smithery.ai/docs/build/project-config/smithery-yaml
+runtime: "container"
+build:
+  dockerfile: "Dockerfile"
+  dockerBuildPath: "."
 startCommand:
   type: "http"
+  # JSON Schema defining the configuration options for the MCP.
   configSchema:
     type: object
     properties: {}
-  commandFunction: |
-    (config) => ({ command: 'uv', args: ['run', 'src/server.py'] })
+  exampleConfig: {}

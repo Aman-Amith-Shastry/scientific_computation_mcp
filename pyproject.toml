@@ -10,7 +10,8 @@ dependencies = [
     "numpy>=2.2.6",
     "sympy>=1.14.0",
     "typing",
-    "pydantic"
+    "pydantic",
+    "fastapi>=0.116.1",
 ]
 
 [tool.uv.workspace]

@@ -8,8 +8,8 @@ ENV PYTHONUNBUFFERED=1 \
 # Set working directory
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y curl
-
+# Install system dependencies
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager
 RUN pip install uv
@@ -18,15 +18,16 @@ RUN pip install uv
 COPY . .
 
 # Install dependencies using uv
-RUN uv add numpy
-RUN uv add "mcp[cli]"
-RUN uv add sympy
-RUN uv add matplotlib
+RUN uv add numpy \
+    && uv add "mcp[cli]" \
+    && uv add sympy \
+    && uv add matplotlib \
+    && uv add pydantic \
+    && uv add uvicorn \
+    && uv add starlette
 
-RUN uv add pydantic
-
-# Expose the port (if needed)
+# Expose the port (Smithery will set PORT env var)
 EXPOSE 8081
 
-# Start the MCP server using uv
-CMD ["uv", "run", "src/server.py"]
+# Start the MCP server - IMPORTANT: must use PORT env var from Smithery
+CMD ["uv", "run", "src/main.py"]

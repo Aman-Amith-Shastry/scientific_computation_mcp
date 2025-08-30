@@ -1,17 +1,20 @@
-from typing import Annotated, Optional
 import os
 import numpy as np
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
+from typing import Annotated
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware import Middleware
 
 import linear_algebra
 import vector_calculus
 import visualization
 
+# Initialize tensor store
 tensor_store = {}
 
+# Initialize MCP server with HTTP transport
 mcp = FastMCP("scientific_computations", stateless_http=False)
 
 
@@ -35,7 +38,6 @@ def create_tensor(shape: Annotated[list[int], Field(min_items=1, description="Te
     Raises:
         ValueError: If the number of values does not match the product of the shape.
     """
-
     shape = [int(x) for x in shape]
     values = [float(x) for x in values]
 
@@ -83,7 +85,6 @@ def delete_tensor(name: str):
     Raises:
         ValueError: If the tensor name is not found in the store or if an error occurs during deletion.
     """
-
     if name not in tensor_store:
         raise ValueError("One or both tensor names not found in the store.")
 
@@ -93,13 +94,40 @@ def delete_tensor(name: str):
         raise ValueError(f"Error removing tensor:{e}")
 
 
+# Register additional tools from modules
 linear_algebra.register_tools(mcp, tensor_store)
 vector_calculus.register_tools(mcp, tensor_store)
 visualization.register_tools(mcp)
 
 
 def main():
-    mcp.run(transport='streamable-http')
+    # Check environment to determine transport
+    port = int(os.environ.get("PORT", 8081))
+
+    print(f"Starting MCP server on port {port}...")
+    print(f"Transport: streamable-http")
+
+    # The key might be that we need to explicitly set the port
+    os.environ["PORT"] = str(port)
+    app = mcp.streamable_http_app()
+
+    app = CORSMiddleware(
+        app=app,
+        allow_origins=["*"],
+        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        expose_headers=["*"],
+        max_age=86400
+    )
+
+    # Run with streamable HTTP transport
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        log_level="info",
+        access_log=True
+    )
 
 
 if __name__ == "__main__":
