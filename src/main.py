@@ -5,11 +5,11 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Annotated
 from starlette.middleware.cors import CORSMiddleware
-from starlette.middleware import Middleware
 
 import linear_algebra
 import vector_calculus
 import visualization
+from middleware import AuthMiddleware
 
 # Initialize tensor store
 tensor_store = {}
@@ -110,6 +110,8 @@ def main():
     # The key might be that we need to explicitly set the port
     os.environ["PORT"] = str(port)
     app = mcp.streamable_http_app()
+
+    app.add_middleware(AuthMiddleware)
 
     app = CORSMiddleware(
         app=app,
