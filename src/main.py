@@ -111,8 +111,6 @@ def main():
     os.environ["PORT"] = str(port)
     app = mcp.streamable_http_app()
 
-    app.add_middleware(AuthMiddleware)
-
     app = CORSMiddleware(
         app=app,
         allow_origins=["*"],
@@ -123,13 +121,15 @@ def main():
     )
 
     # Run with streamable HTTP transport
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=port,
-        log_level="info",
-        access_log=True
-    )
+    # uvicorn.run(
+    #     app,
+    #     host="0.0.0.0",
+    #     port=port,
+    #     log_level="info",
+    #     access_log=True
+    # )
+
+    mcp.run()
 
 
 if __name__ == "__main__":
