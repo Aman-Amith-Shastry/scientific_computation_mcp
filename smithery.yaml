@@ -2,7 +2,7 @@
 runtime: "container"
 transport:
   type: http
-  url: /mcp
+  url: /
 build:
   dockerfile: "Dockerfile"
   dockerBuildPath: "."

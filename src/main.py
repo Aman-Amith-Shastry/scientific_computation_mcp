@@ -1,15 +1,15 @@
-import os
 import numpy as np
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Annotated
+from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
+from starlette.routing import Mount
 
 import linear_algebra
 import vector_calculus
 import visualization
-from middleware import AuthMiddleware
 
 # Initialize tensor store
 tensor_store = {}
@@ -101,33 +101,18 @@ visualization.register_tools(mcp)
 
 
 def main():
-    # Check environment to determine transport
-    port = int(os.environ.get("PORT", 8081))
-
-    print(f"Starting MCP server on port {port}...")
-    print(f"Transport: streamable-http")
-
-    # The key might be that we need to explicitly set the port
-    os.environ["PORT"] = str(port)
+    # Run with streamable HTTP transport
     app = mcp.streamable_http_app()
 
     app = CORSMiddleware(
-        app=app,
-        allow_origins=["*"],
+        app,
+        allow_origins=["*"],  # Configure appropriately for production
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],  # MCP streamable HTTP methods
         allow_headers=["*"],
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-        expose_headers=["*"],
-        max_age=86400
+        expose_headers=["mcp-session-id", "mcp-protocol-version"],
     )
 
-    # Run with streamable HTTP transport
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=port,
-        log_level="info",
-        access_log=True
-    )
+    uvicorn.run(app, host='0.0.0.0', port=8081, log_level='debug')
 
 
 if __name__ == "__main__":
