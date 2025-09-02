@@ -6,6 +6,8 @@
 
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/5927ad38-70f6-4f5b-9778-e61ec902d735)
 
+[![MCP Badge](https://lobehub.com/badge/mcp-full/aman-amith-shastry-scientific_computation_mcp)](https://lobehub.com/mcp/aman-amith-shastry-scientific_computation_mcp)
+
 ## Installation Guide
 
 ### Claude Desktop
