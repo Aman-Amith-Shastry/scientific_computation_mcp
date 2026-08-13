@@ -1,21 +1,20 @@
 [project]
 name = "numpy-mcp"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "MCP server exposing NumPy/SymPy linear algebra, vector calculus, and plotting tools over streamable HTTP"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "matplotlib>=3.10.3",
     "numpy>=2.2.6",
     "sympy>=1.14.0",
-    "typing",
-    "pydantic",
-    "fastapi>=0.116.1",
+    "pydantic>=2.0",
     "mcp>=1.13.1",
-    "typer>=0.17.3",
+    "starlette>=0.47.0",
+    "uvicorn>=0.35.0",
 ]
 
-[tool.uv.workspace]
-members = [
-    "Aman Shastry",
+[dependency-groups]
+dev = [
+    "requests>=2.32.0",
 ]

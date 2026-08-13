@@ -1,21 +1,112 @@
+"""
+Streamable-HTTP MCP server exposing NumPy/SymPy scientific computation tools.
+
+Serves the MCP endpoint at $MCP_PATH (default /mcp) on $PORT (default 8081), plus a
+plain GET /health for the hosting platform's liveness probe. Published to Smithery via
+the URL method, so this process is the upstream that Smithery's gateway proxies to.
+
+Deployment constraints:
+  * Tensors live in process memory between tool calls, so this must run as a single
+    always-on instance with sessions enabled (stateless_http=False). Autoscaling to
+    more than one replica splits the store and breaks create -> view flows.
+  * The store is keyed per MCP session, not global, so concurrent users on the shared
+    hosted instance cannot see or clobber each other's tensors.
+
+Usage:
+    uv run src/main.py
+    PORT=8000 ALLOWED_ORIGINS=https://smithery.ai uv run src/main.py
+"""
+
+import os
+import sys
+from collections.abc import MutableMapping
+from pathlib import Path
+from weakref import WeakKeyDictionary
+
 import numpy as np
 import uvicorn
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 from typing import Annotated
-from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
-from starlette.routing import Mount
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse
+
+# Entry-point bootstrap: allow `python src/main.py` without installing the package.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import linear_algebra
 import vector_calculus
 import visualization
 
-# Initialize tensor store
-tensor_store = {}
+HOST = os.environ.get("HOST", "0.0.0.0")
+PORT = int(os.environ.get("PORT", "8081"))
+MCP_PATH = os.environ.get("MCP_PATH", "/mcp")
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "info")
+# Smithery's gateway and the MCP inspector are browser origins; default to open CORS
+# and let an operator pin it down without a code change.
+ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
 
-# Initialize MCP server with HTTP transport
-mcp = FastMCP("scientific_computations", stateless_http=False)
+
+class SessionScopedStore(MutableMapping):
+    """Per-session view over the tensor store, presented to tools as a plain dict.
+
+    One hosted instance serves every connected client, so a single module-level dict
+    would let one user's `view_tensor` read another's tensors and let colliding names
+    overwrite each other. Each MCP session gets its own dict instead, held weakly so it
+    is reclaimed when the session closes. Falls back to one shared dict when there is no
+    active request context (direct imports, tests).
+    """
+
+    def __init__(self):
+        self._by_session = WeakKeyDictionary()
+        self._fallback = {}
+
+    def _current(self) -> dict:
+        try:
+            session = mcp.get_context().session
+        except (LookupError, AttributeError, ValueError):
+            return self._fallback
+        if session is None:
+            return self._fallback
+        return self._by_session.setdefault(session, {})
+
+    def __getitem__(self, key):
+        return self._current()[key]
+
+    def __setitem__(self, key, value):
+        self._current()[key] = value
+
+    def __delitem__(self, key):
+        del self._current()[key]
+
+    def __iter__(self):
+        return iter(self._current())
+
+    def __len__(self):
+        return len(self._current())
+
+
+# Initialize tensor store
+tensor_store = SessionScopedStore()
+
+# Initialize MCP server with streamable HTTP transport. DNS-rebinding protection is
+# disabled explicitly: behind Smithery's gateway the Host/Origin headers are the
+# proxy's, not this server's, and validating them here rejects every proxied request
+# with 421.
+mcp = FastMCP(
+    "scientific_computations",
+    stateless_http=False,
+    streamable_http_path=MCP_PATH,
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+)
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(_request: Request) -> PlainTextResponse:
+    """Liveness probe for the hosting platform."""
+    return PlainTextResponse("ok")
 
 
 # Matrix creation, deletion, and modification
@@ -106,13 +197,13 @@ def main():
 
     app = CORSMiddleware(
         app,
-        allow_origins=["*"],  # Configure appropriately for production
+        allow_origins=ALLOWED_ORIGINS,
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],  # MCP streamable HTTP methods
         allow_headers=["*"],
         expose_headers=["mcp-session-id", "mcp-protocol-version"],
     )
 
-    uvicorn.run(app, host='0.0.0.0', port=8081, log_level='debug')
+    uvicorn.run(app, host=HOST, port=PORT, log_level=LOG_LEVEL)
 
 
 if __name__ == "__main__":
