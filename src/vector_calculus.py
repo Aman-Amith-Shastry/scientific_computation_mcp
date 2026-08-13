@@ -1,10 +1,26 @@
+from typing import Annotated, Any
+
 import numpy as np
 import sympy as sp
+from mcp.types import ToolAnnotations
+from pydantic import Field
 from sympy.parsing.sympy_parser import standard_transformations, implicit_multiplication_application
 from sympy import parse_expr
 from sympy.vector import Del, CoordSys3D, Vector, directional_derivative
 
+from schemas import Tensor
+
 C = CoordSys3D('C')
+
+# Symbolic and numeric computation only, nothing stored or fetched, so every tool here
+# is read-only and closed-world.
+READ_ONLY = dict(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
+
+# The field string is the same argument in five tools; describe it once.
+FieldStr = Annotated[str, Field(
+    description='Vector field in bracketed list form with components in x, y, z, e.g. "[x+y, x, 2*z]".')]
+Point = Annotated[list[float] | None, Field(
+    description="Optional [x, y, z] coordinates at which to evaluate the result numerically.")]
 
 
 def parse_field(f_str: str):
@@ -40,8 +56,11 @@ def parse_field(f_str: str):
 def register_tools(mcp, tensor_store):
     # Basic vector operations
 
-    @mcp.tool()
-    def vector_project(name: str, new_vector: list[float]) -> np.ndarray:
+    @mcp.tool(annotations=ToolAnnotations(title="Vector Projection", **READ_ONLY))
+    def vector_project(
+        name: Annotated[str, Field(description="Name of the stored vector to project.")],
+        new_vector: Annotated[list[float], Field(description="The vector to project onto, as a flat list.")],
+    ) -> Tensor:
         """
         Projects a stored vector onto another vector.
 
@@ -50,7 +69,7 @@ def register_tools(mcp, tensor_store):
             new_vector (list[float]): The vector to project onto.
 
         Returns:
-            np.ndarray: The projection result vector.
+            Tensor: The projection result vector.
 
         Raises:
             ValueError: If the vector name is not found or projection fails.
@@ -59,15 +78,18 @@ def register_tools(mcp, tensor_store):
             raise ValueError("The tensor name is not found in the store.")
 
         try:
-            new_vector = np.asarray(new_vector)
-            result = np.dot(tensor_store[name], new_vector) / np.linalg.norm(new_vector) * new_vector
+            target = np.asarray(new_vector)
+            result = np.dot(tensor_store[name], target) / np.linalg.norm(target) * target
         except ValueError as e:
             raise ValueError(f"Error computing projection:{e}")
 
-        return result
+        return result.tolist()
 
-    @mcp.tool()
-    def vector_dot_product(name_a: str, name_b: str) -> np.ndarray:
+    @mcp.tool(annotations=ToolAnnotations(title="Vector Dot Product", **READ_ONLY))
+    def vector_dot_product(
+        name_a: Annotated[str, Field(description="Name of the first stored vector.")],
+        name_b: Annotated[str, Field(description="Name of the second stored vector.")],
+    ) -> float:
         """
         Computes the dot product between two stored vectors.
 
@@ -76,7 +98,7 @@ def register_tools(mcp, tensor_store):
             name_b (str): Name of the second vector in the tensor store.
 
         Returns:
-            np.ndarray: Scalar result of the dot product.
+            float: Scalar result of the dot product.
 
         Raises:
             ValueError: If either vector is not found or if the dot product computation fails.
@@ -89,10 +111,13 @@ def register_tools(mcp, tensor_store):
         except ValueError as e:
             raise ValueError(f"Error computing dot product:{e}")
 
-        return result
+        return float(result)
 
-    @mcp.tool()
-    def vector_cross_product(name_a: str, name_b: str) -> np.ndarray:
+    @mcp.tool(annotations=ToolAnnotations(title="Vector Cross Product", **READ_ONLY))
+    def vector_cross_product(
+        name_a: Annotated[str, Field(description="Name of the first stored vector (the left operand).")],
+        name_b: Annotated[str, Field(description="Name of the second stored vector (the right operand).")],
+    ) -> Tensor:
         """
         Computes the cross product of two stored vectors.
 
@@ -101,7 +126,7 @@ def register_tools(mcp, tensor_store):
             name_b (str): Name of the second vector in the tensor store.
 
         Returns:
-            np.ndarray: Vector result of the cross product.
+            Tensor: Vector result of the cross product.
 
         Raises:
             ValueError: If either vector is not found or if the cross product computation fails.
@@ -114,10 +139,12 @@ def register_tools(mcp, tensor_store):
         except ValueError as e:
             raise ValueError(f"Error computing cross product:{e}")
 
-        return result
+        return result.tolist()
 
-    @mcp.tool()
-    def gradient(f_str: str) -> str:
+    @mcp.tool(annotations=ToolAnnotations(title="Gradient", **READ_ONLY))
+    def gradient(
+        f_str: Annotated[str, Field(description='Scalar function of x, y, z, e.g. "x**2 + y*z".')],
+    ) -> str:
         """
         Computes the symbolic gradient of a scalar function.
 
@@ -134,8 +161,8 @@ def register_tools(mcp, tensor_store):
         # handing back a SymPy Matrix fails the SDK's output validation instead.
         return str(grad)
 
-    @mcp.tool()
-    def curl(f_str: str, point: list[float] = None) -> dict:
+    @mcp.tool(annotations=ToolAnnotations(title="Curl", **READ_ONLY))
+    def curl(f_str: FieldStr, point: Point = None) -> dict[str, Any]:
         """
         Computes the symbolic curl of a vector field, optionally evaluated at a point.
 
@@ -160,8 +187,8 @@ def register_tools(mcp, tensor_store):
             result['curl_val'] = [float(v) for v in lamb(*point)]
         return result
 
-    @mcp.tool()
-    def divergence(f_str: str, point: list[float] = None) -> dict:
+    @mcp.tool(annotations=ToolAnnotations(title="Divergence", **READ_ONLY))
+    def divergence(f_str: FieldStr, point: Point = None) -> dict[str, Any]:
         """
         Computes the symbolic divergence of a vector field, optionally evaluated at a point.
 
@@ -184,8 +211,13 @@ def register_tools(mcp, tensor_store):
             result['divergence_val'] = float(lamb(*point))
         return result
 
-    @mcp.tool()
-    def laplacian(f_str: str, is_vector: bool = False) -> str:
+    @mcp.tool(annotations=ToolAnnotations(title="Laplacian", **READ_ONLY))
+    def laplacian(
+        f_str: Annotated[str, Field(
+            description='Scalar function such as "x**2 + y*z", or a bracketed vector field such as "[Fx, Fy, Fz]".')],
+        is_vector: Annotated[bool, Field(
+            description="Set True when f_str is a vector field, so the Laplacian is taken componentwise.")] = False,
+    ) -> str:
         """
         Computes the Laplacian of a scalar or vector field symbolically.
 
@@ -209,8 +241,14 @@ def register_tools(mcp, tensor_store):
             lap_comps = [Del().dot(Del()(comp)).doit() for comp in comps]
             return str(lap_comps)  # list form
 
-    @mcp.tool()
-    def directional_deriv(f_str: str, u: list[float], unit: bool = True) -> str:
+    @mcp.tool(annotations=ToolAnnotations(title="Directional Derivative", **READ_ONLY))
+    def directional_deriv(
+        f_str: Annotated[str, Field(description='Scalar function of x, y, z, e.g. "x*y*z".')],
+        u: Annotated[list[float], Field(
+            description="Direction as [vx, vy, vz]; trailing components may be omitted.", min_length=1, max_length=3)],
+        unit: Annotated[bool, Field(
+            description="Normalize the direction to unit length before differentiating.")] = True,
+    ) -> str:
         """
         Computes symbolic directional derivative of scalar field along a vector direction.
 

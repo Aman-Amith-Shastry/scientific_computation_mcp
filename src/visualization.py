@@ -1,7 +1,10 @@
 from io import BytesIO
+from typing import Annotated
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from mcp.server.fastmcp import Image
+from mcp.types import ToolAnnotations
+from pydantic import Field
 from sympy import symbols
 import sympy as sp
 from sympy.parsing.sympy_parser import standard_transformations, implicit_multiplication_application, parse_expr, \
@@ -13,9 +16,20 @@ transforms = standard_transformations + (implicit_multiplication_application, co
 local_ns = {"x": x, "y": y, "z": z, "sin": sp.sin, "cos": sp.cos}
 
 
+# Rendering is pure computation returning a PNG; nothing is stored or fetched.
+READ_ONLY = dict(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
+
+
 def register_tools(mcp):
-    @mcp.tool()
-    def plot_vector_field(f_str: str, bounds=(-1, 1, -1, 1, -1, 1), n: int = 10) -> Image:
+    @mcp.tool(annotations=ToolAnnotations(title="Plot Vector Field", **READ_ONLY))
+    def plot_vector_field(
+        f_str: Annotated[str, Field(
+            description='3D vector field in bracketed list form, e.g. "[z, -y, x]".')],
+        bounds: Annotated[tuple[float, float, float, float, float, float], Field(
+            description="Plot domain as (xmin, xmax, ymin, ymax, zmin, zmax).")] = (-1, 1, -1, 1, -1, 1),
+        n: Annotated[int, Field(
+            description="Number of arrows sampled per axis; the grid holds n**3 points.", ge=2, le=30)] = 10,
+    ) -> Image:
         """
         Plots a 3D vector field from a string "[u(x,y,z), v(x,y,z), w(x,y,z)]"
 
@@ -71,9 +85,17 @@ def register_tools(mcp):
         buf.close()
         return Image(data=img_bytes, format="png")
 
-    @mcp.tool()
-    def plot_function(expr_str: str, xlim: tuple[int, int] = (-5, 5), ylim: tuple[int, int] = (-5, 5), grid=200) \
-            -> Image:
+    @mcp.tool(annotations=ToolAnnotations(title="Plot Function", **READ_ONLY))
+    def plot_function(
+        expr_str: Annotated[str, Field(
+            description='Function of x (2D curve) or of x and y (3D surface), e.g. "x**2" or "sin(x**2 + y**2)".')],
+        xlim: Annotated[tuple[float, float], Field(
+            description="x-axis range as (xmin, xmax).")] = (-5, 5),
+        ylim: Annotated[tuple[float, float], Field(
+            description="y-axis range as (ymin, ymax); used only for 3D surfaces.")] = (-5, 5),
+        grid: Annotated[int, Field(
+            description="Samples per axis. Higher is smoother and slower.", ge=10, le=1000)] = 200,
+    ) -> Image:
 
         """
         Plots a 2D or 3D mathematical function from a symbolic expression string.
