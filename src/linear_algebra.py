@@ -1,4 +1,3 @@
-import ast
 import numpy as np
 
 
@@ -281,7 +280,7 @@ def register_tools(mcp, tensor_store):
 
     # Bases
     @mcp.tool()
-    async def find_orthonormal_basis(name: str) -> list[list[float]]:
+    def find_orthonormal_basis(name: str) -> list[list[float]]:
         """
         Finds an orthonormal basis for the column space of a stored matrix using QR decomposition.
 
@@ -294,15 +293,19 @@ def register_tools(mcp, tensor_store):
         Raises:
             ValueError: If the matrix is not found or decomposition fails.
         """
+        if name not in tensor_store:
+            raise ValueError("The tensor name is not found in the store.")
 
         try:
-            result = await mcp.call_tool("qr_decompose", arguments={'name': name})
-            d = ast.literal_eval(result[-1].text)
-
+            # Call numpy directly rather than round-tripping through qr_decompose as an
+            # MCP tool: that path hands back the serialized text, where 'q' is numpy's
+            # string repr rather than a nested list, and fails this return annotation.
+            q, _ = np.linalg.qr(tensor_store[name])
         except ValueError as e:
             raise ValueError(f"Error computing orthonormal basis: {e}")
 
-        return d['q']
+        # Transposed so each element is a basis vector; the basis is the columns of Q.
+        return q.T.tolist()
 
     @mcp.tool()
     def change_basis(name: str, new_basis: list[list[float]]) -> np.ndarray:

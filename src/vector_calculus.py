@@ -2,7 +2,7 @@ import numpy as np
 import sympy as sp
 from sympy.parsing.sympy_parser import standard_transformations, implicit_multiplication_application
 from sympy import parse_expr
-from sympy.vector import Del, CoordSys3D, directional_derivative
+from sympy.vector import Del, CoordSys3D, Vector, directional_derivative
 
 C = CoordSys3D('C')
 
@@ -130,7 +130,9 @@ def register_tools(mcp, tensor_store):
         f_sym = sp.sympify(f_str)
         variable = sorted(list(f_sym.free_symbols), key=lambda s: s.name)
         grad = sp.Matrix([f_sym]).jacobian(variable)
-        return grad
+        # str() like the other symbolic tools: the declared return type is str, and
+        # handing back a SymPy Matrix fails the SDK's output validation instead.
+        return str(grad)
 
     @mcp.tool()
     def curl(f_str: str, point: list[float] = None) -> dict:
@@ -200,8 +202,10 @@ def register_tools(mcp, tensor_store):
             return str(lap)
         else:
             F = parse_field(f_str)
-            # Extract components
-            comps = F.to_matrix(C).tolist()
+            # Iterate the matrix directly rather than .tolist(): to_matrix returns a 3x1
+            # column, so tolist() nests each component in its own list and Del() is handed
+            # [C.x**2] instead of C.x**2.
+            comps = list(F.to_matrix(C))
             lap_comps = [Del().dot(Del()(comp)).doit() for comp in comps]
             return str(lap_comps)  # list form
 
@@ -216,8 +220,23 @@ def register_tools(mcp, tensor_store):
         Returns:
             str: Symbolic result as string.
         """
+        if not 1 <= len(u) <= 3:
+            raise ValueError("Direction must have 1 to 3 components, ordered [vx, vy, vz].")
+
         f = parse_expr(f_str, local_dict={"x": C.x, "y": C.y, "z": C.z})
-        v = u[0] * C.i + u[1] * C.j + u[2] * C.k
+
+        # Build by accumulation rather than u[0]*C.i + u[1]*C.j + u[2]*C.k. The schema
+        # types u as list[float], so a zero component arrives as 0.0, and multiplying a
+        # basis vector by a float zero raises inside sympy ('Zero' object has no
+        # attribute '_base_instance') where an int zero would yield Vector.zero. Skipping
+        # zero terms sidesteps that, and short u no longer runs off the end of the list.
+        v = Vector.zero
+        for comp, basis in zip(u, (C.i, C.j, C.k)):
+            if comp:
+                v = v + sp.sympify(comp) * basis
+
+        if v == Vector.zero:
+            raise ValueError("Direction vector is zero; the derivative has no direction to take.")
 
         if unit:
             v = v.normalize()

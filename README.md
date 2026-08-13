@@ -2,7 +2,7 @@
 
 # Scientific Computation MCP
 
-[![smithery badge](https://smithery.ai/badge/@Aman-Amith-Shastry/scientific_computation_mcp)](https://smithery.ai/server/@Aman-Amith-Shastry/scientific_computation_mcp)
+[![smithery badge](https://smithery.ai/badge/@aman-amith-shastry/scientific_computation_mcp)](https://smithery.ai/server/@aman-amith-shastry/scientific_computation_mcp)
 
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/5927ad38-70f6-4f5b-9778-e61ec902d735)
 
@@ -14,8 +14,12 @@ The server speaks streamable HTTP. Add it from Smithery with the Smithery CLI (N
 
 ```bash
 npm install -g smithery@latest
-smithery mcp add @Aman-Amith-Shastry/scientific_computation_mcp --client claude
+smithery mcp add @aman-amith-shastry/scientific_computation_mcp --client claude
 ```
+
+The namespace is lowercase. Smithery's registry lookup is case-sensitive, and the
+mixed-case spelling resolves to an empty record with no tools rather than failing
+outright, so a capitalized name looks like a server with no capabilities.
 
 Swap `--client cursor` for Cursor, or drop `--client` to add it as a remote Smithery
 connection. Restart the client afterwards so it picks up the server.
@@ -78,7 +82,7 @@ HTTP on `$PORT` with no platform-specific assumptions.
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' https://<your-host>/health
-smithery mcp publish "https://<your-host>/mcp" -n @Aman-Amith-Shastry/scientific_computation_mcp
+smithery mcp publish "https://<your-host>/mcp" -n @aman-amith-shastry/scientific_computation_mcp
 ```
 
 The server takes no user configuration, so no config schema is needed.
