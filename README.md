@@ -56,15 +56,23 @@ Two constraints the host must satisfy:
 In the Render dashboard: **New → Blueprint**, then select this repo. Render injects
 `PORT`, terminates TLS, and probes `/health`; no other configuration is required.
 
-Free instances spin down after 15 minutes of idle and take roughly a minute to come
-back. That is survivable — while a client is connected the MCP session holds an open
-stream, so the service stays awake mid-conversation, and a cold start drops the session
-and its tensors together rather than leaving a half-empty store. It bites in exactly one
-place worth planning around: Smithery scans the URL as `SmitheryBot/1.0` at publish time,
-and a scan that lands on a sleeping instance can time out. Warm it first.
+Free instances spin down after 15 minutes without *inbound* traffic and take roughly a
+minute to come back. An open MCP session does not prevent this: the streamable-HTTP
+stream is server-to-client, so an idle session sends nothing inbound and the service
+sleeps out from under it. Two consequences worth planning around:
 
-Any host that keeps one process always on works equally well and skips the warm-up
-dance — the container is plain HTTP on `$PORT` with no platform-specific assumptions.
+- **Tensors do not survive a 15-minute gap between tool calls.** The store is in process
+  memory, so a spin-down takes the session and its tensors together. Active use keeps
+  the service up, since each tool call is inbound traffic; a long pause mid-analysis
+  does not.
+- **Publish-time scans can land on a sleeping instance.** Smithery scans the URL as
+  `SmitheryBot/1.0`, and a cold start can outrun its timeout. Warm `/health` first.
+
+The free tier also grants 750 instance-hours per workspace per month against a ~730-hour
+month, so one continuously running free service just fits and a second does not.
+
+Any host that keeps one process always on avoids all of this — the container is plain
+HTTP on `$PORT` with no platform-specific assumptions.
 
 ### Publishing
 
