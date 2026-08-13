@@ -22,6 +22,6 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /health
-    # Free instances spin down after 15 minutes idle. A longer grace period lets an
-    # in-flight MCP session drain instead of being cut mid-stream on the way down.
-    maxShutdownDelaySeconds: 120
+    # No maxShutdownDelaySeconds: free-tier services reject it, and the 30s default
+    # cannot be raised. Sessions are dropped rather than drained on spin-down, which is
+    # why the README treats a 15-minute idle gap as tensor loss.
