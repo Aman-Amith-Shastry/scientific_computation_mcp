@@ -11,7 +11,7 @@
 # Usage:
 #     Render dashboard -> New -> Blueprint -> select this repo.
 #     smithery mcp publish "https://<service>.onrender.com/mcp" \
-#         -n @Aman-Amith-Shastry/scientific_computation_mcp
+#         -n @aman-amith-shastry/scientific_computation_mcp
 
 services:
   - type: web
