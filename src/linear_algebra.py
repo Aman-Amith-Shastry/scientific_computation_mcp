@@ -32,11 +32,11 @@ def register_tools(mcp, tensor_store):
     @mcp.tool()
     def subtract_matrices(name_a: str, name_b: str) -> np.ndarray:
         """
-        Adds two stored tensors element-wise.
+        Subtracts one stored tensor from another element-wise, computing name_a - name_b.
 
         Args:
-            name_a (str): The name of the first tensor.
-            name_b (str): The name of the second tensor.
+            name_a (str): The name of the tensor to subtract from (the minuend).
+            name_b (str): The name of the tensor to subtract (the subtrahend).
 
         Returns:
             np.ndarray: The result of element-wise subtraction.
@@ -75,7 +75,7 @@ def register_tools(mcp, tensor_store):
         try:
             result = np.matmul(tensor_store[name_a], tensor_store[name_b])
         except ValueError as e:
-            raise ValueError(f"Error subtracting tensors: {e}")
+            raise ValueError(f"Error multiplying tensors: {e}")
 
         return result
 
