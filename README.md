@@ -2,7 +2,7 @@
 
 # Scientific Computation MCP
 
-[![smithery badge](https://smithery.ai/badge/@aman-amith-shastry/scientific_computation_mcp)](https://smithery.ai/server/@aman-amith-shastry/scientific_computation_mcp)
+[![smithery badge](https://smithery.ai/badge/Aman-Amith-Shastry/scientific_computation_mcp)](https://smithery.ai/servers/Aman-Amith-Shastry/scientific_computation_mcp)
 
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/5927ad38-70f6-4f5b-9778-e61ec902d735)
 
