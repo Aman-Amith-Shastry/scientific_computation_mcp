@@ -26,6 +26,7 @@ from weakref import WeakKeyDictionary
 import numpy as np
 import uvicorn
 from mcp.server.fastmcp import FastMCP
+from mcp.server.session import InitializationState, ServerSession
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 from typing import Annotated
@@ -87,6 +88,33 @@ class SessionScopedStore(MutableMapping):
     def __len__(self):
         return len(self._current())
 
+
+def _tolerate_missing_initialized_notification() -> None:
+    """Accept requests from clients that skip `notifications/initialized`.
+
+    The spec has the client send that notification after `initialize`, and the SDK holds
+    the session in `Initializing` until it arrives, raising on anything else. Smithery's
+    scanner never sends it: it initializes, then goes straight to tools/list. The raise is
+    flattened by shared/session.py into `-32602 Invalid request parameters` with the
+    message stripped, so every list request fails identically and the listing reports
+    "No capabilities found" despite the tools being registered.
+
+    Promoting `Initializing` -> `Initialized` on the first post-initialize request only
+    widens what is accepted, so spec-compliant clients are unaffected: they send the
+    notification and reach the same state one step earlier. `initialize` itself is matched
+    before the state check, so re-initialization still behaves normally.
+    """
+    received_request = ServerSession._received_request
+
+    async def _received_request(self, responder):
+        if self._initialization_state == InitializationState.Initializing:
+            self._initialization_state = InitializationState.Initialized
+        return await received_request(self, responder)
+
+    ServerSession._received_request = _received_request
+
+
+_tolerate_missing_initialized_notification()
 
 # Initialize tensor store
 tensor_store = SessionScopedStore()
