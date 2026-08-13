@@ -1,33 +1,30 @@
 FROM python:3.12-slim
 
-# Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    UV_HTTP_TIMEOUT=60
+    UV_HTTP_TIMEOUT=60 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH" \
+    MPLBACKEND=Agg
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+COPY --from=ghcr.io/astral-sh/uv:0.7.3 /uv /usr/local/bin/uv
 
-# Install uv package manager
-RUN pip install uv
+# Resolve dependencies from the lockfile before copying source, so edits to src/ don't
+# invalidate the dependency layer. --frozen fails loudly if uv.lock is out of date
+# rather than silently resolving something different from what was tested.
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-install-project --no-dev
 
-# Copy project files
-COPY . .
+COPY src/ ./src/
 
-# Install dependencies using uv
-RUN uv add numpy \
-    && uv add "mcp[cli]" \
-    && uv add sympy \
-    && uv add matplotlib \
-    && uv add pydantic \
-    && uv add uvicorn \
-    && uv add starlette
+RUN useradd --create-home --uid 10001 app && chown -R app:app /app
+USER app
 
-# Expose the port (Smithery will set PORT env var)
+# The platform injects PORT; 8081 is only the local default.
+ENV PORT=8081
 EXPOSE 8081
 
-# Start the MCP server - IMPORTANT: must use PORT env var from Smithery
-CMD ["uv", "run", "src/main.py"]
+CMD ["python", "src/main.py"]

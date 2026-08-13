@@ -1,0 +1,27 @@
+# Render Blueprint for the scientific_computation MCP server.
+#
+# Deploys the Dockerfile as a single web service on the free plan, which is what this
+# server needs rather than merely what it can afford: tensors live in process memory
+# between tool calls, so a second replica would split the store and break
+# create_tensor -> view_tensor. Do not add numInstances.
+#
+# Render injects PORT and terminates TLS, so the container needs no extra configuration;
+# src/main.py already reads $PORT and serves /health.
+#
+# Usage:
+#     Render dashboard -> New -> Blueprint -> select this repo.
+#     smithery mcp publish "https://<service>.onrender.com/mcp" \
+#         -n @Aman-Amith-Shastry/scientific_computation_mcp
+
+services:
+  - type: web
+    name: scientific-computation-mcp
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    # Free instances spin down after 15 minutes idle. A longer grace period lets an
+    # in-flight MCP session drain instead of being cut mid-stream on the way down.
+    maxShutdownDelaySeconds: 120

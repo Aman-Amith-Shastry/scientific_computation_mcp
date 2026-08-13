@@ -10,63 +10,70 @@
 
 ## Installation Guide
 
-### Claude Desktop
+The server speaks streamable HTTP. Add it from Smithery with the Smithery CLI (Node 20+):
 
-Open Claude Desktop's configuration file (claude_desktop_config.json) and add the following:
-
-- Mac/Linux: 
-```json
-{
-  "mcpServers": {
-    "numpy_mcp": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "@Aman-Amith-Shastry/scientific_computation_mcp",
-        "--key",
-        "<YOUR_SMITHERY_API_KEY>"
-      ]
-    }
-  }
-}
+```bash
+npm install -g smithery@latest
+smithery mcp add @Aman-Amith-Shastry/scientific_computation_mcp --client claude
 ```
 
-- Windows:
-```json
-{
-  "mcpServers": {
-    "numpy_mcp": {
-      "command": "cmd",
-      "args": [
-        "/c",
-        "npx",
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "@Aman-Amith-Shastry/scientific_computation_mcp",
-        "--key",
-        "<YOUR_SMITHERY_API_KEY>"
-      ]
-    }
-  }
-}
+Swap `--client cursor` for Cursor, or drop `--client` to add it as a remote Smithery
+connection. Restart the client afterwards so it picks up the server.
+
+## Running Locally
+
+```bash
+uv sync
+uv run src/main.py
 ```
 
-Or alternatively, run the following command:
-```commandline
-npx -y @smithery/cli@latest install @Aman-Amith-Shastry/scientific_computation_mcp --client claude --key <YOUR_SMITHERY_API_KEY>
+The MCP endpoint is at `http://localhost:8081/mcp` and a liveness probe at
+`http://localhost:8081/health`. Environment overrides: `PORT`, `HOST`, `MCP_PATH`,
+`ALLOWED_ORIGINS`, `LOG_LEVEL`.
+
+## Deployment
+
+Smithery no longer builds or hosts containers — servers are published either as a URL
+that Smithery's gateway proxies to, or as an MCPB bundle for local stdio. This server is
+published by URL, so the container runs on any host that can serve HTTPS.
+
+```bash
+docker build -t scientific-computation-mcp .
+docker run -p 8081:8081 -e PORT=8081 scientific-computation-mcp
 ```
 
-Restart Claude to load the server properly
+Two constraints the host must satisfy:
 
-### Cursor
+- **One instance.** Tensors live in process memory between tool calls, so scaling past a
+  single replica splits the store and breaks `create_tensor` → `view_tensor` flows.
+- **Sessions must survive.** The transport runs stateful (`stateless_http=False`) and
+  the tensor store is keyed per MCP session, which is what keeps concurrent users from
+  reading each other's tensors.
 
-If you prefer to access the server through Cursor instead, then run the following command:
-```commandline
-npx -y @smithery/cli@latest install @Aman-Amith-Shastry/scientific_computation_mcp --client cursor --key <YOUR_SMITHERY_API_KEY>
+### Hosting on Render
+
+[`render.yaml`](render.yaml) deploys the Dockerfile as a single free-plan web service.
+In the Render dashboard: **New → Blueprint**, then select this repo. Render injects
+`PORT`, terminates TLS, and probes `/health`; no other configuration is required.
+
+Free instances spin down after 15 minutes of idle and take roughly a minute to come
+back. That is survivable — while a client is connected the MCP session holds an open
+stream, so the service stays awake mid-conversation, and a cold start drops the session
+and its tensors together rather than leaving a half-empty store. It bites in exactly one
+place worth planning around: Smithery scans the URL as `SmitheryBot/1.0` at publish time,
+and a scan that lands on a sleeping instance can time out. Warm it first.
+
+Any host that keeps one process always on works equally well and skips the warm-up
+dance — the container is plain HTTP on `$PORT` with no platform-specific assumptions.
+
+### Publishing
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' https://<your-host>/health
+smithery mcp publish "https://<your-host>/mcp" -n @Aman-Amith-Shastry/scientific_computation_mcp
 ```
+
+The server takes no user configuration, so no config schema is needed.
 
 ## Components of the Server
 
