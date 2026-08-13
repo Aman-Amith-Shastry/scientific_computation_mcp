@@ -5,6 +5,10 @@ Serves the MCP endpoint at $MCP_PATH (default /mcp) on $PORT (default 8081), plu
 plain GET /health for the hosting platform's liveness probe. Published to Smithery via
 the URL method, so this process is the upstream that Smithery's gateway proxies to.
 
+$MCP_TRANSPORT switches to stdio for clients that spawn the server as a child process
+rather than connecting over the network. The tool surface is identical either way; only
+the framing differs.
+
 Deployment constraints:
   * Tensors live in process memory between tool calls, so this must run as a single
     always-on instance with sessions enabled (stateless_http=False). Autoscaling to
@@ -15,6 +19,7 @@ Deployment constraints:
 Usage:
     uv run src/main.py
     PORT=8000 ALLOWED_ORIGINS=https://smithery.ai uv run src/main.py
+    MCP_TRANSPORT=stdio uv run src/main.py
 """
 
 import os
@@ -47,6 +52,10 @@ HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8081"))
 MCP_PATH = os.environ.get("MCP_PATH", "/mcp")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "info")
+# Transport. Defaults to http so the hosted deployment is unaffected; stdio exists for
+# clients that spawn the server as a child process and speak over its stdin/stdout,
+# which is what Glama's build test and a local `claude mcp add` both do.
+MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "http").strip().lower()
 # Smithery's gateway and the MCP inspector are browser origins; default to open CORS
 # and let an operator pin it down without a code change.
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
@@ -244,6 +253,16 @@ visualization.register_tools(mcp)
 
 
 def main():
+    if MCP_TRANSPORT == "stdio":
+        # Nothing may be written to stdout but the JSON-RPC stream itself, so no banner
+        # or port log here. The per-session tensor store still behaves: stdio serves one
+        # session per process, which is the granularity it keys on.
+        mcp.run(transport="stdio")
+        return
+
+    if MCP_TRANSPORT != "http":
+        raise SystemExit(f"MCP_TRANSPORT must be 'http' or 'stdio', got {MCP_TRANSPORT!r}")
+
     # Run with streamable HTTP transport
     app = mcp.streamable_http_app()
 
