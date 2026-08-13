@@ -27,6 +27,7 @@ import numpy as np
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 from mcp.server.session import InitializationState, ServerSession
+from mcp.types import ToolAnnotations
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 from typing import Annotated
@@ -40,6 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import linear_algebra
 import vector_calculus
 import visualization
+from schemas import Tensor
 
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8081"))
@@ -138,11 +140,16 @@ async def health(_request: Request) -> PlainTextResponse:
 
 
 # Matrix creation, deletion, and modification
-@mcp.tool()
-def create_tensor(shape: Annotated[list[int], Field(min_items=1, description="Tensor shape as list of integers")],
-                  values: Annotated[
-                      list[float], Field(min_items=1, description="Flat list of floats to fill the tensor")],
-                  name: str) -> np.ndarray:
+@mcp.tool(annotations=ToolAnnotations(
+    title="Create Tensor", readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False))
+def create_tensor(
+    shape: Annotated[list[int], Field(
+        min_length=1, description="Tensor shape as a list of dimension sizes, e.g. [2, 3] for a 2x3 matrix.")],
+    values: Annotated[list[float], Field(
+        min_length=1, description="Flat, row-major list of values; its length must equal the product of shape.")],
+    name: Annotated[str, Field(
+        description="Name to store the tensor under; other tools take this name as their argument.")],
+) -> Tensor:
     """
     Creates a NumPy array (matrix) with a specified shape and values.
 
@@ -152,7 +159,7 @@ def create_tensor(shape: Annotated[list[int], Field(min_items=1, description="Te
         name (str): The name of the tensor to be stored.
 
     Returns:
-        np.ndarray: A NumPy array with the specified shape.
+        Tensor: The stored tensor as nested lists.
 
     Raises:
         ValueError: If the number of values does not match the product of the shape.
@@ -165,21 +172,30 @@ def create_tensor(shape: Annotated[list[int], Field(min_items=1, description="Te
     a = np.array(values).reshape(shape)
 
     tensor_store[name] = a
-    return a
+    return a.tolist()
 
 
-@mcp.tool()
-def view_tensor(name: str) -> dict:
+@mcp.tool(annotations=ToolAnnotations(
+    title="View Tensor", readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
+def view_tensor(
+    name: Annotated[str, Field(description="Name of the stored tensor to read back.")],
+) -> Tensor:
     """
     Returns an immutable view of a previously stored NumPy tensor from the in-memory tensor store.
 
     Args:
         name (str): The name of the tensor as stored in the in-store dictionary
-    Returns:
-        dict: The in-store dictionary for tensors
 
+    Returns:
+        Tensor: The stored tensor as nested lists.
+
+    Raises:
+        ValueError: If the tensor name is not found in the store.
     """
-    return tensor_store[name]
+    if name not in tensor_store:
+        raise ValueError("The tensor name is not found in the store.")
+
+    return tensor_store[name].tolist()
 
 
 @mcp.resource("data://tensor_store")
@@ -193,24 +209,32 @@ def list_tensor_names() -> str:
     return "\n".join(tensor_store.keys())
 
 
-@mcp.tool()
-def delete_tensor(name: str):
+@mcp.tool(annotations=ToolAnnotations(
+    title="Delete Tensor", readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False))
+def delete_tensor(
+    name: Annotated[str, Field(description="Name of the stored tensor to remove from the store.")],
+) -> str:
     """
     Deletes a tensor from the in-memory tensor store.
 
     Args:
         name (str): The name of the tensor to delete.
 
+    Returns:
+        str: Confirmation that the tensor was removed.
+
     Raises:
         ValueError: If the tensor name is not found in the store or if an error occurs during deletion.
     """
     if name not in tensor_store:
-        raise ValueError("One or both tensor names not found in the store.")
+        raise ValueError("The tensor name is not found in the store.")
 
     try:
         tensor_store.pop(name)
     except ValueError as e:
         raise ValueError(f"Error removing tensor:{e}")
+
+    return f"Deleted tensor {name!r}."
 
 
 # Register additional tools from modules
